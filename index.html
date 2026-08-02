@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>零件管理器</title>
+<link rel="manifest" href="manifest.json">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="theme-color" content="#1a73e8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="零件管理器">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔩</text></svg>">
+<style>
+:root {
+  --bg:#f5f5f5;--surface:#fff;--border:#e0e0e0;--text:#333;--text2:#666;
+  --primary:#1a73e8;--primary-h:#1557b0;--danger:#d93025;--danger-h:#b3261e;
+  --radius:8px;--shadow:0 1px 3px rgba(0,0,0,.08);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans SC",sans-serif;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#1a1a1a;--surface:#252525;--border:#3a3a3a;--text:#e0e0e0;--text2:#999;--shadow:0 1px 3px rgba(0,0,0,.3)}
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:var(--radius);padding:8px 16px;font-size:14px;transition:background .15s}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.5;pointer-events:none}
+select,input{font-family:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text)}
+select:focus,input:focus{outline:2px solid var(--primary);outline-offset:-1px}
+
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;position:sticky;top:0;z-index:10}
+.header-inner{max-width:900px;margin:0 auto;display:flex;align-items:center;gap:10px}
+.header h1{font-size:19px;white-space:nowrap}
+.header-actions{margin-left:auto;display:flex;gap:6px}
+
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-h)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}.btn-outline:hover{background:var(--border)}
+.btn-danger{background:transparent;border:1px solid var(--danger);color:var(--danger)}.btn-danger:hover{background:var(--danger);color:#fff}
+.btn-sm{padding:5px 10px;font-size:13px}.btn-xs{padding:3px 7px;font-size:12px}
+
+.main{max-width:900px;margin:0 auto;padding:12px 16px}
+
+/* Vehicle bar */
+.vbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px 14px}
+.vbar input[type=text]{flex:1;min-width:0}
+.vbar .v-stats{display:flex;gap:12px;font-size:13px;color:var(--text2)}
+.vbar .v-stat{white-space:nowrap}
+.vbar .v-stat b{color:var(--text)}
+.search-icon{font-size:16px;flex-shrink:0;opacity:.5}
+
+/* Add row */
+.add-row{background:#f0f7ff;border:1px solid var(--primary);border-radius:var(--radius);padding:8px 12px;margin-bottom:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+@media(prefers-color-scheme:dark){.add-row{background:#1a2a3a}}
+.add-row .v-label{font-weight:600;font-size:14px;white-space:nowrap;padding:0 4px;color:var(--primary)}
+.add-row select{min-width:0}
+.add-row .spec-fields{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.add-row .spec-fields input{width:80px}
+.add-row .spec-fields select{min-width:110px}
+.add-row .qty{width:56px;text-align:center}
+
+/* Grouped list */
+.groups{margin-bottom:12px}
+.group{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden}
+.group-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border);font-weight:600;font-size:14px;cursor:pointer;user-select:none}
+.group-header .icon{font-size:18px}
+.group-header .count{color:var(--text2);font-weight:400;font-size:13px;margin-left:auto}
+.group-header .arrow{transition:transform .2s;color:var(--text2)}
+.group.collapsed .group-body{display:none}
+.group.collapsed .arrow{transform:rotate(-90deg)}
+
+/* Vehicle cards on home screen */
+.v-cards{display:grid;gap:10px}
+.v-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;cursor:pointer;transition:box-shadow .15s,transform .15s;border:2px solid transparent;display:flex;align-items:center;gap:12px}
+.v-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12);border-color:var(--primary);transform:translateY(-1px)}
+.v-card:active{transform:scale(.99)}
+.v-card .vc-icon{flex-shrink:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:12px;overflow:hidden;white-space:nowrap;text-overflow:clip}
+.v-card .vc-info{flex:1;min-width:0}
+.v-card .vc-name{font-weight:600;font-size:15px;margin-bottom:3px}
+.v-card .vc-summary{font-size:13px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v-card .vc-arrow{font-size:20px;color:var(--text2);flex-shrink:0;transition:transform .15s}
+.v-card:hover .vc-arrow{transform:translateX(3px);color:var(--primary)}
+
+.part-row{display:flex;align-items:center;gap:8px;padding:8px 14px 8px 6px;border-bottom:1px solid var(--border);font-size:14px}
+.part-row:last-child{border-bottom:none}
+.part-row:hover{background:rgba(26,115,232,.03)}
+.part-row .spec{flex:1;min-width:0}
+.part-row .qty-badge{background:var(--bg);padding:2px 8px;border-radius:12px;font-size:13px;white-space:nowrap}
+.part-row .btn-icon{padding:2px 6px;font-size:12px}
+.part-drag{cursor:grab;color:var(--text2);font-size:15px;padding:2px 4px;letter-spacing:-2px;touch-action:none;user-select:none;opacity:.4;flex-shrink:0}
+.part-drag:active{cursor:grabbing}
+.part-row.dragging{opacity:.5;background:rgba(26,115,232,.12);box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:5;transition:box-shadow .15s}
+.part-row.drop-above{border-top:2px solid var(--primary)}
+.part-row.drop-below{border-bottom:2px solid var(--primary)}
+
+/* Vehicle actions */
+.v-actions{display:flex;gap:8px;margin-bottom:12px;justify-content:flex-end}
+
+/* New vehicle inline */
+.new-vehicle{display:none;gap:6px;align-items:center}
+.new-vehicle input{flex:1;min-width:120px}
+
+/* Empty / loading */
+.empty{text-align:center;padding:48px 16px;color:var(--text2)}
+.empty p{font-size:15px}.empty p+p{font-size:13px;margin-top:4px}
+.loading{text-align:center;padding:48px;color:var(--text2)}
+.spinner{display:inline-block;width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:20px;font-size:14px;z-index:100;animation:toastIn .3s ease}
+.toast.error{background:var(--danger)}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%)translateY(10px)}to{opacity:1;transform:translateX(-50%)translateY(0)}}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--surface);border-radius:12px;padding:24px;max-width:400px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.2)}
+.modal h2{margin-bottom:16px;font-size:18px}
+.modal label{display:block;margin-bottom:4px;font-size:13px;color:var(--text2)}
+.modal input{width:100%;margin-bottom:12px}
+.modal-buttons{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* Custom dialog */
+.dlg-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99;display:flex;align-items:center;justify-content:center;padding:16px;animation:dlgIn .15s ease}
+@keyframes dlgIn{from{opacity:0}to{opacity:1}}
+.dlg-box{background:var(--surface);border-radius:14px;padding:20px 24px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.25);animation:dlgUp .2s ease}
+@keyframes dlgUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.dlg-title{font-size:16px;font-weight:600;margin-bottom:6px}
+.dlg-msg{font-size:14px;color:var(--text2);margin-bottom:14px;line-height:1.5}
+.dlg-input{width:100%;margin-bottom:14px;font-size:15px;padding:10px 12px}
+.dlg-btns{display:flex;gap:8px;justify-content:flex-end}
+.dlg-btns button{min-width:64px;justify-content:center}
+
+/* Context menu */
+.cmenu{position:fixed;background:var(--surface);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:200;min-width:150px;padding:6px 0;display:none;overflow:hidden}
+.cmenu-item{display:block;width:100%;text-align:left;padding:11px 18px;font-size:14px;cursor:pointer;border:none;background:none;color:var(--text);font-family:var(--font);border-radius:0}
+.cmenu-item:hover,.cmenu-item:active{background:var(--bg)}
+.cmenu-item.danger{color:var(--danger)}
+
+/* Select mode */
+.sel-bar{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:2px solid var(--primary);padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:20;box-shadow:0 -2px 10px rgba(0,0,0,.1)}
+.sel-bar span{font-weight:600;font-size:14px;flex:1}
+.v-card.sel{border-color:var(--primary);background:rgba(26,115,232,.05)}
+.v-card .vc-check{flex-shrink:0;width:22px;height:22px;border:2px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:transparent;transition:all .15s}
+.v-card.sel .vc-check{border-color:var(--primary);background:var(--primary);color:#fff}
+.v-card.select-mode{cursor:pointer}
+.v-card.select-mode .vc-arrow{display:none}
+.v-card.select-mode:hover{box-shadow:0 4px 12px rgba(0,0,0,.12);border-color:var(--primary)}
+
+/* Type chips */
+.type-chip{display:inline-flex;align-items:center;gap:4px;background:var(--bg);padding:3px 8px;border-radius:14px;margin:0 4px 4px 0;font-size:13px}
+
+@media(max-width:640px){
+  .header h1{font-size:16px}
+  .vbar{flex-wrap:wrap}
+  .vbar .v-stats{width:100%;justify-content:space-around}
+  .add-row{flex-direction:column}
+  .part-row{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <h1>🔩 零件管理器</h1>
+    <div class="header-actions">
+      <button class="btn-outline btn-sm" onclick="exportText()">📋 导出</button>
+      <button class="btn-outline btn-sm" onclick="showSettings()">⚙️</button>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Home bar: search + new -->
+  <div class="vbar" id="vbarHome">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="搜索车辆..." oninput="renderVehicleList()">
+    <button class="btn-outline btn-sm" onclick="toggleSelectMode()" id="btnSelect">☐ 多选</button>
+    <button class="btn-primary btn-sm" onclick="showNewVehicle()">＋ 新建</button>
+    <div class="new-vehicle" id="newVehForm">
+      <input type="text" id="newVehName" placeholder="输入车辆名称" maxlength="60">
+      <button class="btn-primary btn-sm" onclick="createVehicle()">创建</button>
+      <button class="btn-outline btn-sm" onclick="cancelNewVehicle()">取消</button>
+    </div>
+  </div>
+  <!-- Detail bar: back + vehicle name -->
+  <div class="vbar" id="vbarDetail" style="display:none">
+    <button class="btn-outline btn-sm" onclick="goBack()" style="flex-shrink:0">← 返回</button>
+    <span style="font-weight:600;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="detailTitle"></span>
+    <button class="btn-primary btn-sm" onclick="showNewVehicle()" style="flex-shrink:0">＋ 新建</button>
+    <div class="new-vehicle" id="newVehForm2">
+      <input type="text" id="newVehName2" placeholder="输入车辆名称" maxlength="60">
+      <button class="btn-primary btn-sm" onclick="createVehicle2()">创建</button>
+      <button class="btn-outline btn-sm" onclick="cancelNewVehicle2()">取消</button>
+    </div>
+  </div>
+  <!-- Stats bar -->
+  <div class="v-stats" id="vStats" style="display:none;margin-bottom:10px;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text2)"></div>
+
+  <!-- Add form -->
+  <div class="add-row" id="addForm" style="display:none;flex-wrap:wrap">
+    <div style="width:100%;font-weight:600;font-size:14px;margin-bottom:4px" id="addVehLabel"></div>
+    <select id="addType" onchange="onTypeChange()">
+      <option value="">零件类型</option>
+      <option value="螺丝">螺丝</option>
+      <option value="螺母">螺母</option>
+      <option value="衬套">衬套</option>
+      <option value="垫片">垫片</option>
+    </select>
+    <div class="spec-fields" id="specFields"></div>
+    <input type="text" inputmode="numeric" class="qty" id="addQty" value="1" placeholder="数量">
+    <label id="coldLabel" style="display:none;align-items:center;gap:3px;font-size:13px;white-space:nowrap;cursor:pointer"><input type="checkbox" id="afCH" style="width:auto;margin:0">冷镦件</label>
+    <span style="flex:1"></span>
+    <button class="btn-primary btn-sm" onclick="saveRecord()" id="addBtn">＋ 添加</button>
+    <button class="btn-outline btn-sm" onclick="cancelEdit()" id="cancelBtn" style="display:none">取消</button>
+  </div>
+
+  <!-- Groups -->
+  <div class="groups" id="tableContent"></div>
+
+  <!-- Select mode bottom bar -->
+  <div class="sel-bar" id="selBar" style="display:none">
+    <span id="selCount">已选 0 辆</span>
+    <button class="btn-primary btn-sm" onclick="exportSelected()">📋 导出所选</button>
+    <button class="btn-outline btn-sm" onclick="toggleSelectMode()">取消</button>
+  </div>
+
+  <!-- Vehicle actions -->
+  <div class="v-actions" id="vActions" style="display:none">
+    <button class="btn-outline btn-sm" onclick="renameVehicle()">✏️ 重命名车辆</button>
+    <button class="btn-danger btn-sm" onclick="deleteVehicle()">🗑 删除车辆及所有零件</button>
+  </div>
+
+<!-- Context menu -->
+<div class="cmenu" id="cmenu"></div>
+
+<div class="modal-overlay" id="settingsModal" style="display:none">
+  <div class="modal" style="max-width:440px;max-height:90vh;overflow-y:auto">
+    <h2>⚙️ 设置</h2>
+    <label>Supabase URL</label>
+    <input type="text" id="setUrl" placeholder="https://xxx.supabase.co">
+    <label>Anon Key</label>
+    <input type="password" id="setKey" placeholder="anon key">
+
+    <h3 style="margin:16px 0 8px;font-size:15px">🔩 螺丝类型</h3>
+    <div id="screwTypeList" style="margin-bottom:4px"></div>
+    <div style="display:flex;gap:6px">
+      <input type="text" id="newScrewType" placeholder="新增螺丝类型" style="flex:1;margin-bottom:0">
+      <button class="btn-primary btn-sm" onclick="addScrewTypeUI()">添加</button>
+    </div>
+
+    <h3 style="margin:16px 0 8px;font-size:15px">🔧 螺母类型</h3>
+    <div id="nutTypeList" style="margin-bottom:4px"></div>
+    <div style="display:flex;gap:6px">
+      <input type="text" id="newNutType" placeholder="新增螺母类型" style="flex:1;margin-bottom:0">
+      <button class="btn-primary btn-sm" onclick="addNutTypeUI()">添加</button>
+    </div>
+
+    <div class="modal-buttons">
+      <button class="btn-outline" onclick="hideSettings()">关闭</button>
+      <button class="btn-primary" onclick="saveSettings()">保存连接</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ==================== 配置 ====================
+const DEFAULTS = {
+  url: 'https://piqssqeavnipgorhyeee.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpcXNzcWVhdm5pcGdvcmh5ZWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjY0MjksImV4cCI6MjEwMTIwMjQyOX0.hzbgrv-CQOED39m7ilZrsQQlofYpkCNO9uJVPnr_l2c'
+};
+function cfg(k){return localStorage.getItem('pm_'+k)||DEFAULTS[k]}
+function setCfg(k,v){localStorage.setItem('pm_'+k,v)}
+
+// ==================== 云端配置（换电脑自动同步） ====================
+var _cloudCfg={};  // 内存缓存
+async function loadCloudCfg(){
+  try{var rows=await api('GET','app_config?select=key,value');rows.forEach(function(r){_cloudCfg[r.key]=r.value})}catch(e){}
+}
+function getCloudCfg(key,fallback){
+  if(_cloudCfg[key]!=null)return _cloudCfg[key];
+  // 迁移本地旧数据
+  var old=localStorage.getItem('pm_'+key);
+  if(old!=null){_cloudCfg[key]=old;saveCloudCfg(key,old);localStorage.removeItem('pm_'+key);return old}
+  return fallback;
+}
+function saveCloudCfg(key,value){
+  _cloudCfg[key]=value;
+  api('POST','app_config',{key:key,value:String(value)}).catch(function(e){
+    api('PATCH','app_config?key=eq.'+encodeURIComponent(key),{value:String(value)}).catch(function(){});
+  });
+}
+
+// ==================== 常量 ====================
+const SIZES=['M1.6','M2','M2.5','M3','M3.5','M4','M5','M6','M8','M10','M12','M14','M16','M18','M20','M22','M24'];
+var SCREW_DEFAULTS=['内六角螺丝','外六角螺丝','平头内六角螺丝','蘑菇头自攻螺丝'];
+var NUT_DEFAULTS=['防滑螺母','带盘螺母','螺母'];
+function getScrewTypes(){try{var c=JSON.parse(getCloudCfg('screwTypes','[]'));var d=SCREW_DEFAULTS.slice();return d.concat(c.filter(function(x){return d.indexOf(x)<0}))}catch(e){return SCREW_DEFAULTS.slice()}}
+function getNutTypes(){try{var c=JSON.parse(getCloudCfg('nutTypes','[]'));var d=NUT_DEFAULTS.slice();return d.concat(c.filter(function(x){return d.indexOf(x)<0}))}catch(e){return NUT_DEFAULTS.slice()}}
+function addScrewType(name){var list=JSON.parse(getCloudCfg('screwTypes','[]'));if(list.indexOf(name)<0){list.push(name);list.sort();saveCloudCfg('screwTypes',JSON.stringify(list))}onTypeChange();setTimeout(function(){document.getElementById('afST').value=name},50)}
+function addNutType(name){var list=JSON.parse(getCloudCfg('nutTypes','[]'));if(list.indexOf(name)<0){list.push(name);list.sort();saveCloudCfg('nutTypes',JSON.stringify(list))}onTypeChange();setTimeout(function(){document.getElementById('afNT').value=name},50)}
+async function addScrewTypeDlg(){var r=await dialog({title:'新增螺丝类型',input:true,confirm:'添加'});if(r.confirmed&&r.value.trim())addScrewType(r.value.trim())}
+async function addNutTypeDlg(){var r=await dialog({title:'新增螺母类型',input:true,confirm:'添加'});if(r.confirmed&&r.value.trim())addNutType(r.value.trim())}
+const PART_TYPES=['螺丝','螺母','衬套','垫片'];
+const TYPE_ICONS={螺丝:'🔩',螺母:'⬡',衬套:'◎',垫片:'◯'};
+
+// ==================== API ====================
+function apiHeaders(){
+  const k=cfg('anonKey');
+  return {'apikey':k,'Authorization':'Bearer '+k,'Content-Type':'application/json'};
+}
+async function api(method,path,body){
+  const opts={method,headers:apiHeaders()};
+  if(body)opts.body=JSON.stringify(body);
+  if(method==='POST'||method==='PATCH')opts.headers['Prefer']='return=representation';
+  const res=await fetch(cfg('url')+'/rest/v1/'+path,opts);
+  if(!res.ok){const e=await res.text().catch(()=>res.statusText);throw new Error(e)}
+  return method==='DELETE'?null:res.json();
+}
+
+// ==================== 全量同步（比对数据库，有差异才更新，覆盖所有数据） ====================
+var _syncTimer=null,_syncBusy=false;
+async function fullSync(){
+  if(_syncBusy)return;_syncBusy=true;
+  try{
+    var fresh=await api('GET','parts?order=created_at.desc')||[];
+    var tempRecs=records.filter(function(r){return r.id<0});
+    records=fresh.concat(tempRecs);
+    refreshVehicles();await loadCloudCfg();
+    if(!selVehicle)renderVehicleList();else renderContent();
+  }catch(e){}
+  _syncBusy=false;
+}
+function startSync(){
+  clearInterval(_syncTimer);_syncTimer=setInterval(function(){fullSync()},5000);
+}
+
+// ==================== 实时推送（收到变更 → 触发全量比对） ====================
+function refreshVehicles(){
+  vehicles=[...new Set(records.map(function(r){return r.vehicle_name}).filter(Boolean))].sort(function(a,b){return a.localeCompare(b,'zh')});
+}
+function initRealtime(){
+  try{
+    var sb=supabase.createClient(cfg('url'),cfg('anonKey'),{realtime:{params:{eventsPerSecond:10}}});
+    sb.channel('all-rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'parts'},function(){fullSync()})
+      .on('postgres_changes',{event:'*',schema:'public',table:'app_config'},function(){loadCloudCfg()})
+      .subscribe();
+  }catch(e){}
+}
+
+// ==================== 车辆图标 ====================
+function getVehicleIcon(name){
+  const icons=JSON.parse(getCloudCfg('vehicleIcons','{}'));
+  return icons[name]||name.charAt(0);
+}
+async function setVehicleIcon(name){
+  const cur=getVehicleIcon(name);
+  var r4=await dialog({title:'修改图标',msg:'输入1-2个字作为图标：',input:true,value:cur,confirm:'保存'});
+  if(!r4.confirmed)return;
+  const nw=r4.value;
+  if(!nw||!nw.trim())return;
+  const icons=JSON.parse(getCloudCfg('vehicleIcons','{}'));
+  icons[name]=nw.trim().substring(0,2);
+  saveCloudCfg('vehicleIcons',JSON.stringify(icons));
+  renderAll();
+  toast('✅ 图标已更新');
+}
+
+// ==================== 状态 ====================
+let records=[],vehicles=[],selVehicle='',editId=null,busy=false,selectMode=false,selectedVehicles=[];
+
+// ==================== 数据 ====================
+async function loadRecords(){
+  records=await api('GET','parts?order=created_at.desc')||[];
+  refreshVehicles();
+}
+function partsFor(v){return records.filter(r=>r.vehicle_name===v)}
+function groupByType(list){
+  const g={};list.forEach(r=>{(g[r.part_type]=g[r.part_type]||[]).push(r)});
+  return g;
+}
+
+// ==================== 格式化 ====================
+function numCN(n){
+  if(!n||n<1)return'0个';
+  const d=['','一','二','三','四','五','六','七','八','九','十'];
+  if(n<=10)return d[n]+'个';
+  if(n<20)return'十'+(n%10?d[n%10]:'')+'个';
+  const t=Math.floor(n/10),o=n%10;
+  return d[t]+'十'+(o?d[o]:'')+'个';
+}
+function fmtSpec(r){
+  const q=numCN(r.quantity||0);
+  switch(r.part_type){
+    case'螺丝':{
+      const sz=r.screw_special||r.screw_size||'';
+      const len=r.screw_length?'*'+r.screw_length:'';
+      return(r.screw_type||'')+' '+sz+len+' '+q;
+    }
+    case'螺母':{const sz=r.nut_special||r.nut_size||'';return(r.nut_type||'')+' '+sz+' '+q;}
+    case'衬套':{
+      const p=[];if(r.bushing_od)p.push('外径'+r.bushing_od);
+      if(r.bushing_id)p.push('内径'+r.bushing_id);if(r.bushing_height)p.push('高'+r.bushing_height);
+      return(p.length?p.join(' '):'衬套')+' '+q+(r.cold_headed?'（冷墩件）':'');
+    }
+    case'垫片':{
+      const p=[];if(r.washer_od)p.push('外径'+r.washer_od);
+      if(r.washer_id)p.push('内径'+r.washer_id);if(r.washer_height)p.push('高'+r.washer_height);
+      return(p.length?p.join(' '):'垫片')+' '+q+(r.cold_headed?'（冷墩件）':'');
+    }
+    default:return q;
+  }
+}
+function fmtShort(r){
+  switch(r.part_type){
+    case'螺丝':return(r.screw_type||'')+' '+(r.screw_special||r.screw_size||'')+(r.screw_length?'*'+r.screw_length:'');
+    case'螺母':return(r.nut_type||'')+' '+(r.nut_special||r.nut_size||'');
+    case'衬套':{const p=[];if(r.bushing_od)p.push('外'+r.bushing_od);if(r.bushing_id)p.push('内'+r.bushing_id);if(r.bushing_height)p.push('高'+r.bushing_height);return(p.join(' ')||'—')+(r.cold_headed?' 冷墩':'');}
+    case'垫片':{const p=[];if(r.washer_od)p.push('外'+r.washer_od);if(r.washer_id)p.push('内'+r.washer_id);if(r.washer_height)p.push('高'+r.washer_height);return(p.join(' ')||'—')+(r.cold_headed?' 冷墩':'');}
+    default:return'—';
+  }
+}
+
+// ==================== 渲染 ====================
+function renderAll(){
+  if(selVehicle){renderContent();return;}
+  renderVehicleList();
+}
+
+function renderContent(){
+  const parts=sortPartsByOrder(partsFor(selVehicle),selVehicle);
+  const grouped=groupByType(parts);
+
+  // Toggle bars
+  document.getElementById('vbarHome').style.display='none';
+  document.getElementById('vbarDetail').style.display='flex';
+  document.getElementById('detailTitle').textContent=selVehicle;
+
+  // Stats
+  const stats=document.getElementById('vStats');
+  stats.style.display='';
+  let sh='';
+  PART_TYPES.forEach(t=>{const n=(grouped[t]||[]).reduce((s,r)=>s+(r.quantity||0),0);sh+='<span class="v-stat">'+TYPE_ICONS[t]+' '+t+' <b>'+n+'</b></span>';});
+  stats.innerHTML=sh;
+
+  // Add form
+  document.getElementById('addForm').style.display='flex';
+  document.getElementById('addVehLabel').textContent='🚗 '+selVehicle;
+  document.getElementById('vActions').style.display='';
+
+  // Groups
+  const tc=document.getElementById('tableContent');
+  if(!parts.length){
+    tc.innerHTML='<div class="empty"><p>📦 '+esc(selVehicle)+' 还没有零件</p><p>在上面添加第一条</p></div>';
+    return;
+  }
+
+  let h='';
+  PART_TYPES.forEach(t=>{
+    const list=grouped[t];if(!list||!list.length)return;
+    const total=list.reduce((s,r)=>s+(r.quantity||0),0);
+    h+='<div class="group"><div class="group-header" onclick="this.parentElement.classList.toggle(\'collapsed\')"><span class="icon">'+TYPE_ICONS[t]+'</span>'+t+'<span class="count">'+list.length+' 种 · 共 '+total+' 个</span><span class="arrow">▼</span></div><div class="group-body">';
+    list.forEach(r=>{
+      h+='<div class="part-row" data-pid="'+r.id+'"><span class="part-drag" data-pid="'+r.id+'">≡</span><span class="spec">'+esc(fmtShort(r))+'</span><span class="qty-badge">'+numCN(r.quantity||0)+'</span><button class="btn-outline btn-icon btn-xs" onclick="edit('+r.id+')">✏️</button><button class="btn-danger btn-icon btn-xs" onclick="del('+r.id+')">🗑</button></div>';
+    });
+    h+='</div></div>';
+  });
+  // Other types not in PART_TYPES
+  for(const[t,list]of Object.entries(grouped)){
+    if(PART_TYPES.includes(t))continue;
+    h+='<div class="group"><div class="group-header" onclick="this.parentElement.classList.toggle(\'collapsed\')"><span class="icon">📌</span>'+esc(t)+'<span class="count">'+list.length+' 种</span><span class="arrow">▼</span></div><div class="group-body">';
+    list.forEach(r=>{
+      h+='<div class="part-row" data-pid="'+r.id+'"><span class="part-drag" data-pid="'+r.id+'">≡</span><span class="spec">-</span><span class="qty-badge">'+numCN(r.quantity||0)+'</span><button class="btn-outline btn-icon btn-xs" onclick="edit('+r.id+')">✏️</button><button class="btn-danger btn-icon btn-xs" onclick="del('+r.id+')">🗑</button></div>';
+    });
+    h+='</div></div>';
+  }
+  tc.innerHTML=h;
+}
+
+function renderVehicleList(){
+  document.getElementById('vbarHome').style.display='flex';
+  document.getElementById('vbarDetail').style.display='none';
+  document.getElementById('vStats').style.display='none';
+  document.getElementById('addForm').style.display='none';
+  document.getElementById('vActions').style.display='none';
+  const tc=document.getElementById('tableContent');
+  const q=(document.getElementById('searchInput').value||'').trim().toLowerCase();
+  let list=vehicles;
+  if(q)list=vehicles.filter(v=>v.toLowerCase().includes(q));
+  if(!list.length){
+    tc.innerHTML=q?'<div class="empty"><p>🔍 没有找到「'+esc(q)+'」</p></div>':'<div class="empty"><p>🚗 还没有车辆</p><p>点击「＋ 新建」创建第一辆车</p></div>';
+    return;
+  }
+  let h='<div class="v-cards">';
+  list.forEach(v=>{
+    const parts=partsFor(v);
+    const grouped=groupByType(parts);
+    let summary=[];PART_TYPES.forEach(t=>{const list=grouped[t];if(list&&list.length)summary.push(TYPE_ICONS[t]+' '+t+' ×'+list.reduce((s,r)=>s+(r.quantity||0),0))});
+    var vIcon=getVehicleIcon(v);
+    var iconSz=vIcon.length>1?'font-size:16px;line-height:44px':'font-size:24px;line-height:44px';
+    var isSel=selectMode&&selectedVehicles.includes(v);
+    var cardCls='v-card'+(selectMode?' select-mode':'')+(isSel?' sel':'');
+    var onclick=selectMode?'toggleVehicleSelect(\''+esc(v).replace(/'/g,"\\'")+'\')':'selectVehicle(\''+esc(v).replace(/'/g,"\\'")+'\')';
+    h+='<div class="'+cardCls+'" data-vehicle="'+esc(v)+'" onclick="'+onclick+'" oncontextmenu="showCtxMenu(event,\''+esc(v).replace(/'/g,"\\'")+'\')">';
+    if(selectMode)h+='<div class="vc-check">✓</div>';
+    h+='<div class="vc-icon" style="'+iconSz+'">'+esc(vIcon)+'</div><div class="vc-info"><div class="vc-name">'+esc(v)+'</div><div class="vc-summary">'+(summary.length?summary.join('  '):'暂无零件')+'</div></div>';
+    if(!selectMode)h+='<span class="vc-arrow">→</span>';
+    h+='</div>';
+  });
+  h+='</div>';
+  tc.innerHTML=h;
+}
+
+function goBack(){
+  selVehicle='';resetForm();renderAll();
+  document.getElementById('searchInput').value='';
+}
+
+// ==================== 自定义对话框 ====================
+function dialog(opts){
+  // opts: title, msg, input, value, confirm, cancel, danger
+  return new Promise(function(resolve){
+    var overlay=document.createElement('div');overlay.className='dlg-overlay';
+    var h='<div class="dlg-box"><div class="dlg-title">'+(opts.title||'')+'</div>';
+    if(opts.msg)h+='<div class="dlg-msg">'+opts.msg+'</div>';
+    if(opts.input)h+='<input class="dlg-input" id="dlgInput" value="'+(opts.value||'')+'" autofocus>';
+    h+='<div class="dlg-btns"><button class="btn-outline btn-sm" id="dlgCancel">'+(opts.cancel||'取消')+'</button>';
+    h+='<button class="btn-sm '+(opts.danger?'btn-danger':'btn-primary')+'" id="dlgConfirm">'+(opts.confirm||'确定')+'</button></div></div>';
+    overlay.innerHTML=h;
+    document.body.appendChild(overlay);
+    var inp=document.getElementById('dlgInput');
+    if(inp){inp.focus();inp.select();inp.addEventListener('keydown',function(e){if(e.key==='Enter'){cleanup();resolve({confirmed:true,value:inp.value})}})}
+    function cleanup(){overlay.remove()}
+    document.getElementById('dlgConfirm').addEventListener('click',function(){cleanup();resolve({confirmed:true,value:inp?inp.value:''})});
+    document.getElementById('dlgCancel').addEventListener('click',function(){cleanup();resolve({confirmed:false})});
+    overlay.addEventListener('click',function(e){if(e.target===overlay){cleanup();resolve({confirmed:false})}});
+  });
+}
+
+// ==================== 右键菜单 ====================
+let ctxTarget='';
+function showCtxMenu(e,v){
+  e.preventDefault();ctxTarget=v;
+  var m=document.getElementById('cmenu');
+  m.innerHTML='<button class="cmenu-item" onclick="ctxSetIcon()">🎨 修改图标</button><button class="cmenu-item" onclick="ctxRename()">✏️ 重命名</button><button class="cmenu-item danger" onclick="ctxDelete()">🗑 删除车辆</button>';
+  m.style.display='block';m.style.visibility='hidden';
+  var x=e.clientX,y=e.clientY;
+  var w=m.offsetWidth,h=m.offsetHeight;
+  if(x+w>window.innerWidth)x=window.innerWidth-w-4;
+  if(y+h>window.innerHeight)y=window.innerHeight-h-4;
+  m.style.left=x+'px';m.style.top=y+'px';m.style.visibility='';
+}
+
+// 移动端长按
+var _touchTimer=null,_touchMoved=false,_touchTarget='';
+document.addEventListener('touchstart',function(e){
+  var card=e.target.closest('.v-card');if(!card)return;
+  _touchMoved=false;_touchTarget=card.getAttribute('data-vehicle')||'';
+  _touchTimer=setTimeout(function(){if(!_touchMoved){var r=card.getBoundingClientRect();showCtxMenu({clientX:r.left+10,clientY:r.top+40,preventDefault:function(){}},_touchTarget)}},500);
+},{passive:false});
+document.addEventListener('touchmove',function(){_touchMoved=true}, {passive:false});
+document.addEventListener('touchend',function(){clearTimeout(_touchTimer)});
+function hideCtxMenu(){document.getElementById('cmenu').style.display='none';ctxTarget=''}
+function ctxSetIcon(){var v=ctxTarget;hideCtxMenu();setVehicleIcon(v)}
+async function ctxRename(){var v=ctxTarget;hideCtxMenu();var r5=await dialog({title:'重命名车辆',msg:'输入新名称：',input:true,value:v,confirm:'保存'});if(!r5.confirmed)return;var nw=r5.value.trim();if(!nw||nw===v)return;renameVehicleByName(v,nw)}
+function ctxDelete(){var v=ctxTarget;hideCtxMenu();delVehicleByName(v)}
+document.addEventListener('click',function(e){if(!e.target.closest('.cmenu'))hideCtxMenu()});
+document.addEventListener('contextmenu',function(e){if(!e.target.closest('.v-card'))hideCtxMenu()});
+
+// ==================== 车辆操作 ====================
+function selectVehicle(v){
+  selVehicle=v;
+  resetForm();
+  renderAll();
+}
+
+function showNewVehicle(){
+  var bar=selVehicle?document.getElementById('vbarDetail'):document.getElementById('vbarHome');
+  bar.querySelector('.btn-primary').style.display='none';
+  bar.querySelector('.new-vehicle').style.display='flex';
+  var inp=bar.querySelector('.new-vehicle input');if(inp)inp.focus();
+}
+function cancelNewVehicle(){
+  document.querySelectorAll('.new-vehicle').forEach(f=>f.style.display='none');
+  document.querySelectorAll('.vbar .btn-primary').forEach(b=>{if(b.textContent.includes('新建'))b.style.display=''});
+}
+
+async function createVehicle(){
+  var nameInp=document.getElementById('newVehName')||document.getElementById('newVehName2');
+  var name=(nameInp.value||'').trim();
+  if(!name){toast('请输入车辆名称',true);return;}
+  if(vehicles.includes(name)){toast('车辆已存在',true);return;}
+  vehicles.push(name);vehicles.sort(function(a,b){return a.localeCompare(b,'zh')});
+  selVehicle=name;
+  cancelNewVehicle();
+  document.getElementById('searchInput').value='';
+  await loadRecords();
+  renderAll();
+  toast('✅ 已创建 '+name);
+}
+
+// 第二个表单的快捷入口
+function createVehicle2(){var inp=document.getElementById('newVehName2');document.getElementById('newVehName2').id='_tmp';document.getElementById('newVehName').id='newVehName2';document.getElementById('_tmp').id='newVehName'; createVehicle();}
+function cancelNewVehicle2(){cancelNewVehicle();}
+
+async function renameVehicle(){
+  const old=selVehicle;
+  var r3=await dialog({title:'重命名车辆',msg:'输入新名称：',input:true,value:old,confirm:'保存'});
+  if(!r3.confirmed)return;
+  const name=r3.value.trim();
+  if(!name||name===old)return;
+  if(vehicles.includes(name)&&name!==old){toast('车辆名已存在',true);return;}
+  const parts=partsFor(old);
+  if(!parts.length){selVehicle=name;vehicles=vehicles.filter(v=>v!==old);vehicles.push(name);vehicles.sort(function(a,b){return a.localeCompare(b,'zh')});renderAll();toast('✅ 已重命名');return;}
+  try{
+    // 逐个更新（Supabase 不支持批量 update where）
+    await Promise.all(parts.map(p=>api('PATCH','parts?id=eq.'+p.id,{vehicle_name:name})));
+    records.forEach(r=>{if(r.vehicle_name===old)r.vehicle_name=name;});
+    vehicles=vehicles.filter(v=>v!==old);vehicles.push(name);vehicles.sort(function(a,b){return a.localeCompare(b,'zh')});
+    // 迁移图标
+    const icons=JSON.parse(getCloudCfg('vehicleIcons','{}'));
+    if(icons[old]){icons[name]=icons[old];delete icons[old];saveCloudCfg('vehicleIcons',JSON.stringify(icons));}
+    selVehicle=name;renderAll();
+    toast('✅ 已重命名为 '+name);
+  }catch(e){toast('❌ '+e.message,true)}
+}
+
+async function deleteVehicle(){
+  const parts=partsFor(selVehicle);
+  var r=await dialog({title:'删除车辆',msg:'确定删除「'+selVehicle+'」及其全部 '+parts.length+' 个零件？此操作不可恢复！',confirm:'删除',danger:true});
+  if(!r.confirmed)return;
+  try{
+    if(parts.length){
+      // 将删除请求全部发出
+      await Promise.allSettled(parts.map(p=>api('DELETE','parts?id=eq.'+p.id)));
+    }
+    records=records.filter(r=>r.vehicle_name!==selVehicle);
+    vehicles=vehicles.filter(v=>v!==selVehicle);
+    selVehicle='';resetForm();renderAll();
+    toast('🗑 已删除车辆');
+  }catch(e){toast('❌ '+e.message,true);await loadRecords();renderAll();}
+}
+
+async function delVehicleByName(name){
+  const parts=partsFor(name);
+  var r2=await dialog({title:'删除车辆',msg:'确定删除「'+name+'」及其全部 '+parts.length+' 个零件？此操作不可恢复！',confirm:'删除',danger:true});
+  if(!r2.confirmed)return;
+  try{
+    if(parts.length){await Promise.allSettled(parts.map(p=>api('DELETE','parts?id=eq.'+p.id)));}
+    records=records.filter(r=>r.vehicle_name!==name);
+    vehicles=vehicles.filter(v=>v!==name);
+    if(selVehicle===name){selVehicle='';resetForm();}
+    renderAll();
+    toast('🗑 已删除 '+name);
+  }catch(e){toast('❌ '+e.message,true);await loadRecords();renderAll();}
+}
+
+async function renameVehicleByName(old, name){
+  if(vehicles.includes(name)&&name!==old){toast('车辆名已存在',true);return;}
+  const parts=partsFor(old);
+  try{
+    if(parts.length){await Promise.all(parts.map(p=>api('PATCH','parts?id=eq.'+p.id,{vehicle_name:name})));}
+    records.forEach(r=>{if(r.vehicle_name===old)r.vehicle_name=name;});
+    vehicles=vehicles.filter(v=>v!==old);vehicles.push(name);vehicles.sort(function(a,b){return a.localeCompare(b,'zh')});
+    const icons=JSON.parse(getCloudCfg('vehicleIcons','{}'));
+    if(icons[old]){icons[name]=icons[old];delete icons[old];saveCloudCfg('vehicleIcons',JSON.stringify(icons));}
+    if(selVehicle===old)selVehicle=name;
+    renderAll();toast('✅ 已重命名为 '+name);
+  }catch(e){toast('❌ '+e.message,true);await loadRecords();renderAll();}
+}
+
+// ==================== 零件排序 ====================
+function getPartOrder(vehicleName){
+  try{var all=JSON.parse(getCloudCfg('partOrder','{}'));return all[vehicleName]||[]}catch(e){return[]}
+}
+function savePartOrder(vehicleName,order){
+  try{var all=JSON.parse(getCloudCfg('partOrder','{}'));all[vehicleName]=order;saveCloudCfg('partOrder',JSON.stringify(all))}catch(e){}
+}
+function sortPartsByOrder(parts,vehicleName){
+  var order=getPartOrder(vehicleName);
+  return parts.slice().sort(function(a,b){
+    var ia=order.indexOf(a.id),ib=order.indexOf(b.id);
+    if(ia>=0&&ib>=0)return ia-ib;
+    if(ia>=0)return -1;if(ib>=0)return 1;
+    return 0;
+  });
+}
+function swapArray(arr,i,j){var t=arr[i];arr[i]=arr[j];arr[j]=t;return arr}
+
+// 拖拽排序
+var _pDragEl=null,_pDragPid=-1,_pDragStartY=0,_pDragOffY=0,_pDragVeh='',_pDragAllIds=[];
+document.addEventListener('pointerdown',function(e){
+  var h=e.target.closest('.part-drag');if(!h)return;
+  e.preventDefault();h.setPointerCapture(e.pointerId);
+  var row=h.closest('.part-row');if(!row)return;
+  _pDragEl=row;_pDragPid=parseInt(row.getAttribute('data-pid'));
+  _pDragVeh=selVehicle;_pDragStartY=e.clientY;_pDragOffY=0;
+  var all=sortPartsByOrder(partsFor(_pDragVeh),_pDragVeh);
+  _pDragAllIds=all.map(function(p){return p.id});
+  // 初始化 order
+  var order=getPartOrder(_pDragVeh);
+  if(!order.length||!_pDragAllIds.every(function(id){return order.indexOf(id)>=0})){
+    savePartOrder(_pDragVeh,_pDragAllIds.slice());
+  }
+  _pDragEl.classList.add('dragging');
+  _pDragEl.style.transform='translateY(0)';
+  document.addEventListener('pointermove',pDragMove);
+  document.addEventListener('pointerup',pDragEnd);
+});
+function pDragMove(e){
+  if(!_pDragEl)return;
+  _pDragOffY=e.clientY-_pDragStartY;
+  _pDragEl.style.transform='translateY('+_pDragOffY+'px)';
+  // 落点指示
+  var rows=document.querySelectorAll('.part-row');
+  rows.forEach(function(r){r.classList.remove('drop-above','drop-below')});
+  var best=null,bestAfter=false,bestDist=9999;
+  rows.forEach(function(r){
+    if(r===_pDragEl)return;
+    var rect=r.getBoundingClientRect(),mid=rect.top+rect.height/2;
+    var dist=Math.abs(e.clientY-mid);
+    if(dist<bestDist){best=r;bestDist=dist;bestAfter=e.clientY>mid}
+  });
+  if(best&&bestDist<60){
+    best.classList.add(bestAfter?'drop-below':'drop-above');
+  }
+}
+function pDragEnd(e){
+  document.removeEventListener('pointermove',pDragMove);
+  document.removeEventListener('pointerup',pDragEnd);
+  if(!_pDragEl)return;
+  _pDragEl.classList.remove('dragging');_pDragEl.style.transform='';
+  // 找落点
+  var rows=document.querySelectorAll('.part-row');
+  var targetRow=null,targetAfter=false;
+  rows.forEach(function(r){if(r.classList.contains('drop-above')){targetRow=r;targetAfter=false}else if(r.classList.contains('drop-below')){targetRow=r;targetAfter=true}});
+  rows.forEach(function(r){r.classList.remove('drop-above','drop-below')});
+  if(targetRow){
+    var otherPid=parseInt(targetRow.getAttribute('data-pid'));
+    var order=getPartOrder(_pDragVeh);
+    if(!order.length)order=_pDragAllIds.slice();
+    var idx1=order.indexOf(_pDragPid),idx2=order.indexOf(otherPid);
+    if(idx1>=0&&idx2>=0&&idx1!==idx2){
+      order.splice(idx1,1);
+      var newIdx=order.indexOf(otherPid);
+      if(targetAfter)newIdx++;
+      order.splice(newIdx,0,_pDragPid);
+      savePartOrder(_pDragVeh,order);
+    }
+  }
+  _pDragEl=null;_pDragPid=-1;_pDragVeh='';_pDragAllIds=[];
+  renderContent();
+  // 恢复拖拽绑定
+  setTimeout(function(){document.querySelectorAll('.part-drag').forEach(function(h){h.style.pointerEvents=''})},10);
+}
+
+// ==================== 零件操作 ====================
+function onTypeChange(){
+  const t=document.getElementById('addType').value;
+  const c=document.getElementById('specFields');c.innerHTML='';
+  switch(t){
+    case'螺丝':
+      c.innerHTML='<select id="afST" onchange="if(this.value==\'__new__\'){this.value=\'\';addScrewTypeDlg()}">'+getScrewTypes().map(s=>'<option>'+s+'</option>').join('')+'<option value="__new__" style="color:var(--primary)">＋ 新增...</option></select><select id="afSS" onchange="toggleSpecial(\'afSSp\',this)"><option value="">规格</option>'+SIZES.map(s=>'<option>'+s+'</option>').join('')+'</select><input type="text" id="afSSp" placeholder="特殊规格" style="width:85px"><input type="text" inputmode="decimal" id="afSL" placeholder="长度mm" style="width:80px">';
+      break;
+    case'螺母':
+      c.innerHTML='<select id="afNT" onchange="if(this.value==\'__new__\'){this.value=\'\';addNutTypeDlg()}">'+getNutTypes().map(s=>'<option>'+s+'</option>').join('')+'<option value="__new__" style="color:var(--primary)">＋ 新增...</option></select><select id="afNS" onchange="toggleSpecial(\'afNSp\',this)"><option value="">规格</option>'+SIZES.map(s=>'<option>'+s+'</option>').join('')+'</select><input type="text" id="afNSp" placeholder="特殊规格" style="width:85px">';
+      break;
+    case'衬套':
+      c.innerHTML='<input type="text" inputmode="decimal" id="afBOD" placeholder="外径mm" style="width:80px"><input type="text" inputmode="decimal" id="afBID" placeholder="内径mm" style="width:80px"><input type="text" inputmode="decimal" id="afBH" placeholder="高度mm" style="width:80px">';
+      document.getElementById('coldLabel').style.display='flex';break;
+    case'垫片':
+      c.innerHTML='<input type="text" inputmode="decimal" id="afWOD" placeholder="外径mm" style="width:80px"><input type="text" inputmode="decimal" id="afWID" placeholder="内径mm" style="width:80px"><input type="text" inputmode="decimal" id="afWH" placeholder="高度mm" style="width:80px">';
+      document.getElementById('coldLabel').style.display='flex';break;
+    default: document.getElementById('coldLabel').style.display='none';
+  }
+}
+
+function collectFields(){
+  const t=document.getElementById('addType').value;
+  if(!t){toast('请选择零件类型',true);return null;}
+  const f={
+    vehicle_name:selVehicle,
+    part_type:t,
+    quantity:parseNum(document.getElementById('addQty').value)||1,
+    cold_headed:false,
+    screw_type:'',screw_size:'',screw_special:'',screw_length:0,
+    nut_type:'',nut_size:'',nut_special:'',
+    bushing_od:0,bushing_id:0,bushing_height:0,
+    washer_od:0,washer_id:0,washer_height:0
+  };
+  switch(t){
+    case'螺丝':f.screw_type=gv('afST');f.screw_size=gv('afSS');f.screw_special=gv('afSSp');f.screw_length=parseNum(gv('afSL'));break;
+    case'螺母':f.nut_type=gv('afNT');f.nut_size=gv('afNS');f.nut_special=gv('afNSp');break;
+    case'衬套':f.bushing_od=parseNum(gv('afBOD'));f.bushing_id=parseNum(gv('afBID'));f.bushing_height=parseNum(gv('afBH'));f.cold_headed=document.getElementById('afCH')?.checked||false;break;
+    case'垫片':f.washer_od=parseNum(gv('afWOD'));f.washer_id=parseNum(gv('afWID'));f.washer_height=parseNum(gv('afWH'));f.cold_headed=document.getElementById('afCH')?.checked||false;break;
+  }
+  return f;
+}
+
+function toggleSpecial(spId,sel){document.getElementById(spId).style.display=sel.value?'none':''}
+function parseNum(val){
+  if(val==null||val==='')return 0;val=String(val).trim();
+  if(!val)return 0;
+  if(/^-?\d+\.?\d*$/.test(val))return parseFloat(val);
+  if(/^[\d+\-*/().\s]+$/.test(val))try{var r=Function('"use strict";return('+val+')')();if(typeof r==='number'&&isFinite(r))return r}catch(e){}
+  return parseFloat(val)||0;
+}
+function gv(id){const e=document.getElementById(id);return e?e.value:''}
+function sv(id,val){const e=document.getElementById(id);if(e&&val!=null&&val!=='')e.value=val}
+
+function resetForm(){
+  editId=null;
+  document.getElementById('addType').value='';
+  document.getElementById('addQty').value='1';
+  document.getElementById('specFields').innerHTML='';
+  document.getElementById('coldLabel').style.display='none';
+  document.getElementById('afCH').checked=false;
+  document.getElementById('addBtn').textContent='＋ 添加';
+  document.getElementById('cancelBtn').style.display='none';
+}
+
+function cancelEdit(){resetForm();window.scrollTo({top:0,behavior:'smooth'})}
+
+function saveRecord(){
+  if(busy||!selVehicle)return;
+  const f=collectFields();if(!f)return;
+  busy=true;document.getElementById('addBtn').disabled=true;
+
+  if(editId){
+    const curId=editId;
+    const idx=records.findIndex(r=>r.id===curId);
+    const old=idx>=0?{...records[idx]}:null;
+    if(idx>=0){records[idx]={...records[idx],...f};renderContent()}
+    resetForm();
+    api('PATCH','parts?id=eq.'+curId,f)
+      .then(()=>toast('✅ 已更新'))
+      .catch(e=>{toast('❌ '+e.message,true);if(old&&idx>=0){records[idx]=old;renderContent()}})
+      .finally(()=>{busy=false;document.getElementById('addBtn').disabled=false});
+  }else{
+    const tmpId=-Date.now();
+    records.unshift({id:tmpId,...f});
+    renderContent();resetForm();
+    api('POST','parts',f).then(data=>{
+      const rec=Array.isArray(data)?data[0]:data;
+      if(rec){
+        // 去重：防止实时推送已经加了同一条
+        records=records.filter(function(r){return r.id!==rec.id});
+        const i=records.findIndex(function(r){return r.id===tmpId});
+        if(i>=0)records[i]=rec;else records.push(rec);
+        refreshVehicles();renderAll();toast('✅ 已添加');
+      }
+    }).catch(e=>{
+      records=records.filter(r=>r.id!==tmpId);
+      renderContent();toast('❌ '+e.message,true);
+    }).finally(()=>{busy=false;document.getElementById('addBtn').disabled=false});
+  }
+}
+
+function edit(id){
+  const r=records.find(r=>r.id===id);if(!r)return;
+  editId=id;
+  document.getElementById('addType').value=r.part_type||'';
+  document.getElementById('addQty').value=r.quantity||1;
+  document.getElementById('addBtn').textContent='✏️ 更新';
+  document.getElementById('cancelBtn').style.display='';
+  onTypeChange();
+  setTimeout(()=>{
+    switch(r.part_type){
+      case'螺丝':sv('afST',r.screw_type);sv('afSS',r.screw_size);sv('afSSp',r.screw_special);sv('afSL',r.screw_length);toggleSpecial('afSSp',document.getElementById('afSS'));break;
+      case'螺母':sv('afNT',r.nut_type);sv('afNS',r.nut_size);sv('afNSp',r.nut_special);toggleSpecial('afNSp',document.getElementById('afNS'));break;
+      case'衬套':sv('afBOD',r.bushing_od);sv('afBID',r.bushing_id);sv('afBH',r.bushing_height);document.getElementById('coldLabel').style.display='flex';document.getElementById('afCH').checked=!!r.cold_headed;break;
+      case'垫片':sv('afWOD',r.washer_od);sv('afWID',r.washer_id);sv('afWH',r.washer_height);document.getElementById('coldLabel').style.display='flex';document.getElementById('afCH').checked=!!r.cold_headed;break;
+    }
+  },50);
+  document.getElementById('addType').focus();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function del(id){
+  var r=await dialog({title:'删除零件',msg:'确定删除这条记录吗？',confirm:'删除',danger:true});
+  if(!r.confirmed)return;
+  const idx=records.findIndex(r=>r.id===id);
+  const old=idx>=0?records[idx]:null;
+  if(idx>=0)records.splice(idx,1);
+  if(editId===id)resetForm();
+  renderContent();
+  api('DELETE','parts?id=eq.'+id)
+    .then(()=>{refreshVehicles();renderAll();toast('🗑 已删除')})
+    .catch(e=>{toast('❌ '+e.message,true);if(old){records.push(old);renderContent()}});
+}
+
+// ==================== 多选导出 ====================
+function toggleSelectMode(){
+  selectMode=!selectMode;
+  if(!selectMode){selectedVehicles=[];document.getElementById('selBar').style.display='none'}
+  document.getElementById('btnSelect').textContent=selectMode?'☑ 取消多选':'☐ 多选';
+  renderVehicleList();
+}
+
+function toggleVehicleSelect(v){
+  var idx=selectedVehicles.indexOf(v);
+  if(idx>=0)selectedVehicles.splice(idx,1);else selectedVehicles.push(v);
+  document.getElementById('selCount').textContent='已选 '+selectedVehicles.length+' 辆';
+  document.getElementById('selBar').style.display=selectedVehicles.length?'flex':'none';
+  renderVehicleList();
+}
+
+function exportSelected(){
+  if(!selectedVehicles.length)return;
+  var list=records.filter(r=>selectedVehicles.includes(r.vehicle_name));
+  doExport(list);
+  toggleSelectMode();
+}
+
+function exportText(){
+  var list=selVehicle?partsFor(selVehicle):records;
+  doExport(list);
+}
+
+function doExport(list){
+  if(!list.length){toast('没有可导出的记录',true);return;}
+  // 按每辆车各自的排序排列
+  var vehSet={};list.forEach(function(r){vehSet[r.vehicle_name]=true});
+  var sortedList=[];
+  Object.keys(vehSet).forEach(function(vn){sortedList=sortedList.concat(sortPartsByOrder(list.filter(function(r){return r.vehicle_name===vn}),vn))});
+  var grp={};
+  sortedList.forEach(r=>{
+    var v=r.vehicle_name||'(未命名)',t=r.part_type||'其他';
+    (grp[v]=grp[v]||{})[t]=(grp[v][t]||[]).concat(fmtSpec(r));
+  });
+  var order=['螺丝','螺母','衬套','垫片'];
+  var txt='';
+  var vOrder=selectedVehicles.length?selectedVehicles.filter(v=>grp[v]):Object.keys(grp).sort();
+  for(var i=0;i<vOrder.length;i++){
+    var vn=vOrder[i],types=grp[vn];
+    txt+=vn+'\n';
+    for(var j=0;j<order.length;j++){var t=order[j];if(types[t]&&types[t].length){txt+=t+'\n';types[t].forEach(function(s){txt+=s+'\n'});}}
+    for(var k=0;k<Object.keys(types).length;k++){var t2=Object.keys(types)[k];if(!order.includes(t2)&&types[t2]&&types[t2].length){txt+=t2+'\n';types[t2].forEach(function(s){txt+=s+'\n'});}}
+    txt+='\n';
+  }
+  var blob=new Blob(['﻿'+txt.trim()+'\n'],{type:'text/plain;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='零件清单.txt';a.click();URL.revokeObjectURL(a.href);
+  toast('📋 导出成功');
+  selectedVehicles=[];
+}
+
+// ==================== Toast ====================
+let tt;
+function toast(msg,err){
+  const x=document.querySelector('.toast');if(x)x.remove();clearTimeout(tt);
+  const e=document.createElement('div');e.className='toast'+(err?' error':'');e.textContent=msg;
+  document.body.appendChild(e);tt=setTimeout(()=>e.remove(),2500);
+}
+
+// ==================== 设置 ====================
+function renderTypeLists(){
+  var screwH='',nutH='';
+  getScrewTypes().forEach(function(s,i){var isDef=i<4;screwH+='<span class="type-chip">'+esc(s)+(isDef?' <span style="font-size:10px;color:var(--text2)">默认</span>':' <button class="btn-danger btn-xs" onclick="delScrewType(\''+esc(s).replace(/'/g,"\\'")+'\')" style="padding:0 4px;font-size:10px;line-height:16px">✕</button>')+'</span>'});
+  getNutTypes().forEach(function(s,i){var isDef=i<3;nutH+='<span class="type-chip">'+esc(s)+(isDef?' <span style="font-size:10px;color:var(--text2)">默认</span>':' <button class="btn-danger btn-xs" onclick="delNutType(\''+esc(s).replace(/'/g,"\\'")+'\')" style="padding:0 4px;font-size:10px;line-height:16px">✕</button>')+'</span>'});
+  document.getElementById('screwTypeList').innerHTML=screwH||'<span style="color:var(--text2);font-size:13px">无</span>';
+  document.getElementById('nutTypeList').innerHTML=nutH||'<span style="color:var(--text2);font-size:13px">无</span>';
+}
+function delScrewType(name){
+  var list=JSON.parse(getCloudCfg('screwTypes','[]'));list=list.filter(function(x){return x!==name});
+  saveCloudCfg('screwTypes',JSON.stringify(list));renderTypeLists();
+}
+function delNutType(name){
+  var list=JSON.parse(getCloudCfg('nutTypes','[]'));list=list.filter(function(x){return x!==name});
+  saveCloudCfg('nutTypes',JSON.stringify(list));renderTypeLists();
+}
+function addScrewTypeUI(){
+  var inp=document.getElementById('newScrewType');var n=inp.value.trim();
+  if(!n)return;inp.value='';addScrewType(n);setTimeout(renderTypeLists,100);
+}
+function addNutTypeUI(){
+  var inp=document.getElementById('newNutType');var n=inp.value.trim();
+  if(!n)return;inp.value='';addNutType(n);setTimeout(renderTypeLists,100);
+}
+function showSettings(){
+  document.getElementById('setUrl').value=cfg('url');
+  document.getElementById('setKey').value=cfg('anonKey');
+  document.getElementById('settingsModal').style.display='flex';
+  renderTypeLists();
+}
+function hideSettings(){document.getElementById('settingsModal').style.display='none'}
+function saveSettings(){
+  setCfg('url',document.getElementById('setUrl').value.trim()||DEFAULTS.url);
+  setCfg('anonKey',document.getElementById('setKey').value.trim()||DEFAULTS.anonKey);
+  hideSettings();toast('✅ 设置已保存');init();
+}
+
+// ==================== 快捷键 ====================
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();saveRecord()}});
+document.getElementById('newVehName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();createVehicle()}});
+
+// ==================== 初始化 ====================
+function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+async function init(){
+  document.getElementById('tableContent').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:12px">加载中...</p></div>';
+  try{await loadCloudCfg();await loadRecords();renderAll();initRealtime();startSync()}catch(e){document.getElementById('tableContent').innerHTML='<div class="empty"><p>❌ 连接失败</p><p>'+esc(e.message)+'</p><button class="btn-outline btn-sm" style="margin-top:12px" onclick="showSettings()">⚙️ 检查设置</button></div>'}
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden)fullSync()});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+init();
+</script>
+</body>
+</html>
