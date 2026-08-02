@@ -270,8 +270,8 @@ select:focus,input:focus{outline:2px solid var(--primary);outline-offset:-1px}
 <script>
 // ==================== 配置 ====================
 const DEFAULTS = {
-  url: 'https://piqssqeavnipgorhyeee.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpcXNzcWVhdm5pcGdvcmh5ZWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjY0MjksImV4cCI6MjEwMTIwMjQyOX0.hzbgrv-CQOED39m7ilZrsQQlofYpkCNO9uJVPnr_l2c'
+  url: '',
+  anonKey: ''
 };
 function cfg(k){return localStorage.getItem('pm_'+k)||DEFAULTS[k]}
 function setCfg(k,v){localStorage.setItem('pm_'+k,v)}
@@ -1002,6 +1002,10 @@ document.getElementById('newVehName').addEventListener('keydown',e=>{if(e.key===
 function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
 async function init(){
+  if(!cfg('url')||!cfg('anonKey')){
+    document.getElementById('tableContent').innerHTML='<div class="empty"><p>🔩 欢迎使用零件管理器</p><p style="margin-top:8px">请先配置 Supabase 连接</p><button class="btn-primary btn-sm" style="margin-top:12px" onclick="showSettings()">⚙️ 开始设置</button></div>';
+    return;
+  }
   document.getElementById('tableContent').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:12px">加载中...</p></div>';
   try{await loadCloudCfg();await loadRecords();renderAll();initRealtime();startSync()}catch(e){document.getElementById('tableContent').innerHTML='<div class="empty"><p>❌ 连接失败</p><p>'+esc(e.message)+'</p><button class="btn-outline btn-sm" style="margin-top:12px" onclick="showSettings()">⚙️ 检查设置</button></div>'}
 }
