@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -97,6 +97,8 @@ select:focus,input:focus{outline:2px solid var(--primary);outline-offset:-1px}
 
 /* Vehicle actions */
 .v-actions{display:flex;gap:8px;margin-bottom:12px;justify-content:flex-end}
+.sort-bar{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:10px;font-size:13px;color:var(--text2)}
+.sort-bar select{min-width:120px}
 
 /* New vehicle inline */
 .new-vehicle{display:none;gap:6px;align-items:center}
@@ -157,8 +159,22 @@ select:focus,input:focus{outline:2px solid var(--primary);outline-offset:-1px}
   .vbar{flex-wrap:wrap}
   .vbar .v-stats{width:100%;justify-content:space-around}
   .add-row{flex-direction:column}
+  .add-row .spec-fields{width:100%;max-width:100%}
   .part-row{flex-wrap:wrap}
+  select{font-size:16px!important;padding:10px 12px!important;min-height:44px;background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%23666' fill='none' stroke-width='2'/></svg>");background-repeat:no-repeat;background-position:right 12px center;background-size:12px;padding-right:32px!important;-webkit-appearance:none;appearance:none}
+  input,select{font-size:16px!important}
+  .add-row .spec-fields select,.add-row .spec-fields input{min-width:80px;font-size:15px!important}
+  .add-row .qty{min-width:60px}
 }
+
+/* 自定义下拉 — 内联展开 */
+/* 自定义下拉 — 固定浮层，绝对不影响文档流 */
+.cus-drop-float{position:fixed!important;z-index:99999;background:var(--surface);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.25);overflow-y:auto;display:none;margin:0!important;padding:0!important;float:none!important;clear:none!important}
+.cus-drop-float .cus-opt{padding:13px 16px;font-size:15px;cursor:pointer;border-bottom:1px solid var(--border);font-family:var(--font);-webkit-tap-highlight-color:transparent;white-space:nowrap;display:block!important}
+.cus-drop-float .cus-opt:last-child{border-bottom:none}
+.cus-drop-float .cus-opt:active{background:rgba(26,115,232,.1)}
+.cus-drop-float .cus-opt.sel{color:var(--primary);font-weight:600;background:rgba(26,115,232,.05)}
+.cus-backdrop{position:fixed!important;inset:0;z-index:99998;background:rgba(0,0,0,.15);display:none;pointer-events:none}
 </style>
 </head>
 <body>
@@ -182,7 +198,7 @@ select:focus,input:focus{outline:2px solid var(--primary);outline-offset:-1px}
     <button class="btn-primary btn-sm" onclick="showNewVehicle()">＋ 新建</button>
     <div class="new-vehicle" id="newVehForm">
       <input type="text" id="newVehName" placeholder="输入车辆名称" maxlength="60">
-      <button class="btn-primary btn-sm" onclick="createVehicle()">创建</button>
+      <button class="btn-primary btn-sm" onclick="createVehicle('newVehName')">创建</button>
       <button class="btn-outline btn-sm" onclick="cancelNewVehicle()">取消</button>
     </div>
   </div>
@@ -193,12 +209,20 @@ select:focus,input:focus{outline:2px solid var(--primary);outline-offset:-1px}
     <button class="btn-primary btn-sm" onclick="showNewVehicle()" style="flex-shrink:0">＋ 新建</button>
     <div class="new-vehicle" id="newVehForm2">
       <input type="text" id="newVehName2" placeholder="输入车辆名称" maxlength="60">
-      <button class="btn-primary btn-sm" onclick="createVehicle2()">创建</button>
+      <button class="btn-primary btn-sm" onclick="createVehicle('newVehName2')">创建</button>
       <button class="btn-outline btn-sm" onclick="cancelNewVehicle2()">取消</button>
     </div>
   </div>
   <!-- Stats bar -->
   <div class="v-stats" id="vStats" style="display:none;margin-bottom:10px;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text2)"></div>
+  <div class="sort-bar" id="sortBar" style="display:none">
+    <label for="sortMode">排序方式</label>
+    <select id="sortMode" onchange="setSortMode(this.value)">
+      <option value="manual">手动排序</option>
+      <option value="time">按时间排序</option>
+      <option value="name">按名称排序</option>
+    </select>
+  </div>
 
   <!-- Add form -->
   <div class="add-row" id="addForm" style="display:none;flex-wrap:wrap">
@@ -266,7 +290,7 @@ select:focus,input:focus{outline:2px solid var(--primary);outline-offset:-1px}
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase.min.js"></script>
 <script>
 // ==================== 配置 ====================
 const DEFAULTS = {
@@ -279,7 +303,11 @@ function setCfg(k,v){localStorage.setItem('pm_'+k,v)}
 // ==================== 云端配置（换电脑自动同步） ====================
 var _cloudCfg={};  // 内存缓存
 async function loadCloudCfg(){
-  try{var rows=await api('GET','app_config?select=key,value');rows.forEach(function(r){_cloudCfg[r.key]=r.value})}catch(e){}
+  try{
+    var keys='screwTypes,nutTypes,vehicleIcons,partOrder,sortMode';
+    var rows=await api('GET','app_config?select=key,value&key=in.('+keys+')');
+    rows.forEach(function(r){_cloudCfg[r.key]=r.value});
+  }catch(e){}
 }
 function getCloudCfg(key,fallback){
   if(_cloudCfg[key]!=null)return _cloudCfg[key];
@@ -297,6 +325,7 @@ function saveCloudCfg(key,value){
 
 // ==================== 常量 ====================
 const SIZES=['M1.6','M2','M2.5','M3','M3.5','M4','M5','M6','M8','M10','M12','M14','M16','M18','M20','M22','M24'];
+const THREAD_TYPES=['粗牙','细牙'];
 var SCREW_DEFAULTS=['内六角螺丝','外六角螺丝','平头内六角螺丝','蘑菇头自攻螺丝'];
 var NUT_DEFAULTS=['防滑螺母','带盘螺母','螺母'];
 function getScrewTypes(){try{var c=JSON.parse(getCloudCfg('screwTypes','[]'));var d=SCREW_DEFAULTS.slice();return d.concat(c.filter(function(x){return d.indexOf(x)<0}))}catch(e){return SCREW_DEFAULTS.slice()}}
@@ -314,41 +343,67 @@ function apiHeaders(){
   return {'apikey':k,'Authorization':'Bearer '+k,'Content-Type':'application/json'};
 }
 async function api(method,path,body){
-  const opts={method,headers:apiHeaders()};
+  const ctrl=new AbortController();
+  const timer=setTimeout(function(){ctrl.abort()},12000);
+  const opts={method,headers:apiHeaders(),signal:ctrl.signal};
   if(body)opts.body=JSON.stringify(body);
   if(method==='POST'||method==='PATCH')opts.headers['Prefer']='return=representation';
-  const res=await fetch(cfg('url')+'/rest/v1/'+path,opts);
-  if(!res.ok){const e=await res.text().catch(()=>res.statusText);throw new Error(e)}
-  return method==='DELETE'?null:res.json();
+  try{
+    const res=await fetch(cfg('url')+'/rest/v1/'+path,opts);
+    if(!res.ok){const e=await res.text().catch(()=>res.statusText);throw new Error(e)}
+    return method==='DELETE'?null:res.json();
+  }finally{clearTimeout(timer)}
 }
 
-// ==================== 全量同步（比对数据库，有差异才更新，覆盖所有数据） ====================
-var _syncTimer=null,_syncBusy=false;
+// ==================== 数据同步 ====================
+var _syncTimer=null,_syncBusy=false,_realtimeClient=null;
+function updateRenderedRecords(){
+  cacheSet('records',records.filter(function(r){return r.id>0}));
+  refreshVehicles();
+  if(!selVehicle)renderVehicleList();else renderContent();
+}
 async function fullSync(){
-  if(_syncBusy)return;_syncBusy=true;
+  if(_syncBusy||document.hidden)return;
+  _syncBusy=true;
   try{
     var fresh=await api('GET','parts?order=created_at.desc')||[];
     var tempRecs=records.filter(function(r){return r.id<0});
-    records=fresh.concat(tempRecs);
-    refreshVehicles();await loadCloudCfg();
-    if(!selVehicle)renderVehicleList();else renderContent();
+    var merged=fresh.concat(tempRecs);
+    if(!arraysEqual(records,merged)){records=merged;updateRenderedRecords()}
   }catch(e){}
-  _syncBusy=false;
+  finally{_syncBusy=false}
 }
 function startSync(){
-  clearInterval(_syncTimer);_syncTimer=setInterval(function(){fullSync()},5000);
+  clearInterval(_syncTimer);_syncTimer=setInterval(fullSync,60000);
 }
 
-// ==================== 实时推送（收到变更 → 触发全量比对） ====================
+// ==================== 实时推送（直接合并单条变更） ====================
 function refreshVehicles(){
   vehicles=[...new Set(records.map(function(r){return r.vehicle_name}).filter(Boolean))].sort(function(a,b){return a.localeCompare(b,'zh')});
 }
+function applyRealtimeChange(payload){
+  var row=payload.new&&payload.new.id?payload.new:payload.old;
+  if(!row||!row.id){fullSync();return}
+  var idx=records.findIndex(function(r){return r.id===row.id});
+  if(payload.eventType==='DELETE'){
+    if(idx>=0)records.splice(idx,1);
+  }else if(idx>=0){
+    records[idx]=Object.assign({},records[idx],row);
+  }else{
+    records.unshift(row);
+  }
+  updateRenderedRecords();
+}
 function initRealtime(){
   try{
-    var sb=supabase.createClient(cfg('url'),cfg('anonKey'),{realtime:{params:{eventsPerSecond:10}}});
-    sb.channel('all-rt')
-      .on('postgres_changes',{event:'*',schema:'public',table:'parts'},function(){fullSync()})
-      .on('postgres_changes',{event:'*',schema:'public',table:'app_config'},function(){loadCloudCfg()})
+    if(_realtimeClient)_realtimeClient.removeAllChannels();
+    _realtimeClient=supabase.createClient(cfg('url'),cfg('anonKey'),{realtime:{params:{eventsPerSecond:10}}});
+    _realtimeClient.channel('all-rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'parts'},applyRealtimeChange)
+      .on('postgres_changes',{event:'*',schema:'public',table:'app_config'},async function(){
+        await loadCloudCfg();
+        if(selVehicle)renderContent();
+      })
       .subscribe();
   }catch(e){}
 }
@@ -374,10 +429,29 @@ async function setVehicleIcon(name){
 // ==================== 状态 ====================
 let records=[],vehicles=[],selVehicle='',editId=null,busy=false,selectMode=false,selectedVehicles=[];
 
+// ==================== 数据缓存 ====================
+function cacheGet(k){try{var v=localStorage.getItem('_cache_'+k);return v?JSON.parse(v):null}catch(e){return null}}
+function cacheSet(k,d){try{localStorage.setItem('_cache_'+k,JSON.stringify(d))}catch(e){}}
+
 // ==================== 数据 ====================
-async function loadRecords(){
-  records=await api('GET','parts?order=created_at.desc')||[];
-  refreshVehicles();
+async function loadRecords(freshOnly){
+  // 如果不是仅刷新，先尝试缓存（秒开）
+  if(!freshOnly){
+    var c=cacheGet('records');
+    if(c&&c.length){records=c;refreshVehicles();renderAll()}
+  }
+  try{
+    var fresh=await api('GET','parts?order=created_at.desc')||[];
+    if(!arraysEqual(records,fresh)){
+      records=fresh;refreshVehicles();
+      cacheSet('records',fresh);
+      renderAll();
+    }
+  }catch(e){if(!records.length)throw e}
+}
+function arraysEqual(a,b){
+  if(!a||!b||a.length!==b.length)return false;
+  return JSON.stringify(a)===JSON.stringify(b);
 }
 function partsFor(v){return records.filter(r=>r.vehicle_name===v)}
 function groupByType(list){
@@ -394,15 +468,25 @@ function numCN(n){
   const t=Math.floor(n/10),o=n%10;
   return d[t]+'十'+(o?d[o]:'')+'个';
 }
+function needsThreadType(size){
+  var m=/^M(\d+(?:\.\d+)?)$/i.exec(size||'');
+  return !!m&&parseFloat(m[1])>=10;
+}
+function getThreadType(r){
+  var value=r.part_type==='螺丝'?r.screw_special:r.part_type==='螺母'?r.nut_special:'';
+  var size=r.part_type==='螺丝'?r.screw_size:r.part_type==='螺母'?r.nut_size:'';
+  return needsThreadType(size)&&THREAD_TYPES.includes(value)?value:'';
+}
 function fmtSpec(r){
   const q=numCN(r.quantity||0);
   switch(r.part_type){
     case'螺丝':{
-      const sz=r.screw_special||r.screw_size||'';
+      const thread=getThreadType(r);
+      const sz=r.screw_size||(thread?'':r.screw_special)||'';
       const len=r.screw_length?'*'+r.screw_length:'';
-      return(r.screw_type||'')+' '+sz+len+' '+q;
+      return(thread?thread+' ':'')+(r.screw_type||'')+' '+sz+len+' '+q;
     }
-    case'螺母':{const sz=r.nut_special||r.nut_size||'';return(r.nut_type||'')+' '+sz+' '+q;}
+    case'螺母':{const thread=getThreadType(r),sz=r.nut_size||(thread?'':r.nut_special)||'';return(thread?thread+' ':'')+(r.nut_type||'')+' '+sz+' '+q;}
     case'衬套':{
       const p=[];if(r.bushing_od)p.push('外径'+r.bushing_od);
       if(r.bushing_id)p.push('内径'+r.bushing_id);if(r.bushing_height)p.push('高'+r.bushing_height);
@@ -418,8 +502,8 @@ function fmtSpec(r){
 }
 function fmtShort(r){
   switch(r.part_type){
-    case'螺丝':return(r.screw_type||'')+' '+(r.screw_special||r.screw_size||'')+(r.screw_length?'*'+r.screw_length:'');
-    case'螺母':return(r.nut_type||'')+' '+(r.nut_special||r.nut_size||'');
+    case'螺丝':{var st=getThreadType(r),ss=r.screw_size||(st?'':r.screw_special)||'';return(st?st+' ':'')+(r.screw_type||'')+' '+ss+(r.screw_length?'*'+r.screw_length:'');}
+    case'螺母':{var nt=getThreadType(r),ns=r.nut_size||(nt?'':r.nut_special)||'';return(nt?nt+' ':'')+(r.nut_type||'')+' '+ns;}
     case'衬套':{const p=[];if(r.bushing_od)p.push('外'+r.bushing_od);if(r.bushing_id)p.push('内'+r.bushing_id);if(r.bushing_height)p.push('高'+r.bushing_height);return(p.join(' ')||'—')+(r.cold_headed?' 冷墩':'');}
     case'垫片':{const p=[];if(r.washer_od)p.push('外'+r.washer_od);if(r.washer_id)p.push('内'+r.washer_id);if(r.washer_height)p.push('高'+r.washer_height);return(p.join(' ')||'—')+(r.cold_headed?' 冷墩':'');}
     default:return'—';
@@ -444,6 +528,8 @@ function renderContent(){
   // Stats
   const stats=document.getElementById('vStats');
   stats.style.display='';
+  document.getElementById('sortBar').style.display='flex';
+  document.getElementById('sortMode').value=getSortMode();
   let sh='';
   PART_TYPES.forEach(t=>{const n=(grouped[t]||[]).reduce((s,r)=>s+(r.quantity||0),0);sh+='<span class="v-stat">'+TYPE_ICONS[t]+' '+t+' <b>'+n+'</b></span>';});
   stats.innerHTML=sh;
@@ -466,7 +552,7 @@ function renderContent(){
     const total=list.reduce((s,r)=>s+(r.quantity||0),0);
     h+='<div class="group"><div class="group-header" onclick="this.parentElement.classList.toggle(\'collapsed\')"><span class="icon">'+TYPE_ICONS[t]+'</span>'+t+'<span class="count">'+list.length+' 种 · 共 '+total+' 个</span><span class="arrow">▼</span></div><div class="group-body">';
     list.forEach(r=>{
-      h+='<div class="part-row" data-pid="'+r.id+'"><span class="part-drag" data-pid="'+r.id+'">≡</span><span class="spec">'+esc(fmtShort(r))+'</span><span class="qty-badge">'+numCN(r.quantity||0)+'</span><button class="btn-outline btn-icon btn-xs" onclick="edit('+r.id+')">✏️</button><button class="btn-danger btn-icon btn-xs" onclick="del('+r.id+')">🗑</button></div>';
+      h+='<div class="part-row" data-pid="'+r.id+'">'+(getSortMode()==='manual'?'<span class="part-drag" data-pid="'+r.id+'">≡</span>':'')+'<span class="spec">'+esc(fmtShort(r))+'</span><span class="qty-badge">'+numCN(r.quantity||0)+'</span><button class="btn-outline btn-icon btn-xs" onclick="edit('+r.id+')">✏️</button><button class="btn-danger btn-icon btn-xs" onclick="del('+r.id+')">🗑</button></div>';
     });
     h+='</div></div>';
   });
@@ -486,6 +572,7 @@ function renderVehicleList(){
   document.getElementById('vbarHome').style.display='flex';
   document.getElementById('vbarDetail').style.display='none';
   document.getElementById('vStats').style.display='none';
+  document.getElementById('sortBar').style.display='none';
   document.getElementById('addForm').style.display='none';
   document.getElementById('vActions').style.display='none';
   const tc=document.getElementById('tableContent');
@@ -590,8 +677,8 @@ function cancelNewVehicle(){
   document.querySelectorAll('.vbar .btn-primary').forEach(b=>{if(b.textContent.includes('新建'))b.style.display=''});
 }
 
-async function createVehicle(){
-  var nameInp=document.getElementById('newVehName')||document.getElementById('newVehName2');
+function createVehicle(inputId){
+  var nameInp=document.getElementById(inputId||'newVehName');
   var name=(nameInp.value||'').trim();
   if(!name){toast('请输入车辆名称',true);return;}
   if(vehicles.includes(name)){toast('车辆已存在',true);return;}
@@ -599,13 +686,9 @@ async function createVehicle(){
   selVehicle=name;
   cancelNewVehicle();
   document.getElementById('searchInput').value='';
-  await loadRecords();
   renderAll();
   toast('✅ 已创建 '+name);
 }
-
-// 第二个表单的快捷入口
-function createVehicle2(){var inp=document.getElementById('newVehName2');document.getElementById('newVehName2').id='_tmp';document.getElementById('newVehName').id='newVehName2';document.getElementById('_tmp').id='newVehName'; createVehicle();}
 function cancelNewVehicle2(){cancelNewVehicle();}
 
 async function renameVehicle(){
@@ -618,8 +701,7 @@ async function renameVehicle(){
   const parts=partsFor(old);
   if(!parts.length){selVehicle=name;vehicles=vehicles.filter(v=>v!==old);vehicles.push(name);vehicles.sort(function(a,b){return a.localeCompare(b,'zh')});renderAll();toast('✅ 已重命名');return;}
   try{
-    // 逐个更新（Supabase 不支持批量 update where）
-    await Promise.all(parts.map(p=>api('PATCH','parts?id=eq.'+p.id,{vehicle_name:name})));
+    await api('PATCH','parts?vehicle_name=eq.'+encodeURIComponent(old),{vehicle_name:name});
     records.forEach(r=>{if(r.vehicle_name===old)r.vehicle_name=name;});
     vehicles=vehicles.filter(v=>v!==old);vehicles.push(name);vehicles.sort(function(a,b){return a.localeCompare(b,'zh')});
     // 迁移图标
@@ -635,10 +717,7 @@ async function deleteVehicle(){
   var r=await dialog({title:'删除车辆',msg:'确定删除「'+selVehicle+'」及其全部 '+parts.length+' 个零件？此操作不可恢复！',confirm:'删除',danger:true});
   if(!r.confirmed)return;
   try{
-    if(parts.length){
-      // 将删除请求全部发出
-      await Promise.allSettled(parts.map(p=>api('DELETE','parts?id=eq.'+p.id)));
-    }
+    if(parts.length)await api('DELETE','parts?vehicle_name=eq.'+encodeURIComponent(selVehicle));
     records=records.filter(r=>r.vehicle_name!==selVehicle);
     vehicles=vehicles.filter(v=>v!==selVehicle);
     selVehicle='';resetForm();renderAll();
@@ -651,7 +730,7 @@ async function delVehicleByName(name){
   var r2=await dialog({title:'删除车辆',msg:'确定删除「'+name+'」及其全部 '+parts.length+' 个零件？此操作不可恢复！',confirm:'删除',danger:true});
   if(!r2.confirmed)return;
   try{
-    if(parts.length){await Promise.allSettled(parts.map(p=>api('DELETE','parts?id=eq.'+p.id)));}
+    if(parts.length)await api('DELETE','parts?vehicle_name=eq.'+encodeURIComponent(name));
     records=records.filter(r=>r.vehicle_name!==name);
     vehicles=vehicles.filter(v=>v!==name);
     if(selVehicle===name){selVehicle='';resetForm();}
@@ -664,7 +743,7 @@ async function renameVehicleByName(old, name){
   if(vehicles.includes(name)&&name!==old){toast('车辆名已存在',true);return;}
   const parts=partsFor(old);
   try{
-    if(parts.length){await Promise.all(parts.map(p=>api('PATCH','parts?id=eq.'+p.id,{vehicle_name:name})));}
+    if(parts.length)await api('PATCH','parts?vehicle_name=eq.'+encodeURIComponent(old),{vehicle_name:name});
     records.forEach(r=>{if(r.vehicle_name===old)r.vehicle_name=name;});
     vehicles=vehicles.filter(v=>v!==old);vehicles.push(name);vehicles.sort(function(a,b){return a.localeCompare(b,'zh')});
     const icons=JSON.parse(getCloudCfg('vehicleIcons','{}'));
@@ -681,7 +760,15 @@ function getPartOrder(vehicleName){
 function savePartOrder(vehicleName,order){
   try{var all=JSON.parse(getCloudCfg('partOrder','{}'));all[vehicleName]=order;saveCloudCfg('partOrder',JSON.stringify(all))}catch(e){}
 }
+function getSortMode(){
+  var mode=getCloudCfg('sortMode','manual');
+  return ['manual','time','name'].includes(mode)?mode:'manual';
+}
+function setSortMode(mode){saveCloudCfg('sortMode',mode);renderContent()}
 function sortPartsByOrder(parts,vehicleName){
+  var mode=getSortMode();
+  if(mode==='time')return parts.slice().sort(function(a,b){return new Date(b.created_at||0)-new Date(a.created_at||0)||(b.id||0)-(a.id||0)});
+  if(mode==='name')return parts.slice().sort(function(a,b){return partSortName(a).localeCompare(partSortName(b),'zh',{numeric:true,sensitivity:'base'})||(a.id||0)-(b.id||0)});
   var order=getPartOrder(vehicleName);
   return parts.slice().sort(function(a,b){
     var ia=order.indexOf(a.id),ib=order.indexOf(b.id);
@@ -690,12 +777,13 @@ function sortPartsByOrder(parts,vehicleName){
     return 0;
   });
 }
+function partSortName(r){return(r.part_type||'')+' '+fmtShort(r)}
 function swapArray(arr,i,j){var t=arr[i];arr[i]=arr[j];arr[j]=t;return arr}
 
 // 拖拽排序
 var _pDragEl=null,_pDragPid=-1,_pDragStartY=0,_pDragOffY=0,_pDragVeh='',_pDragAllIds=[];
 document.addEventListener('pointerdown',function(e){
-  var h=e.target.closest('.part-drag');if(!h)return;
+  var h=e.target.closest('.part-drag');if(!h||getSortMode()!=='manual')return;
   e.preventDefault();h.setPointerCapture(e.pointerId);
   var row=h.closest('.part-row');if(!row)return;
   _pDragEl=row;_pDragPid=parseInt(row.getAttribute('data-pid'));
@@ -763,12 +851,13 @@ function pDragEnd(e){
 function onTypeChange(){
   const t=document.getElementById('addType').value;
   const c=document.getElementById('specFields');c.innerHTML='';
+  document.getElementById('coldLabel').style.display='none';
   switch(t){
     case'螺丝':
-      c.innerHTML='<select id="afST" onchange="if(this.value==\'__new__\'){this.value=\'\';addScrewTypeDlg()}">'+getScrewTypes().map(s=>'<option>'+s+'</option>').join('')+'<option value="__new__" style="color:var(--primary)">＋ 新增...</option></select><select id="afSS" onchange="toggleSpecial(\'afSSp\',this)"><option value="">规格</option>'+SIZES.map(s=>'<option>'+s+'</option>').join('')+'</select><input type="text" id="afSSp" placeholder="特殊规格" style="width:85px"><input type="text" inputmode="decimal" id="afSL" placeholder="长度mm" style="width:80px">';
+      c.innerHTML='<select id="afST" onchange="if(this.value==\'__new__\'){this.value=\'\';addScrewTypeDlg()}">'+getScrewTypes().map(s=>'<option>'+s+'</option>').join('')+'<option value="__new__" style="color:var(--primary)">＋ 新增...</option></select><select id="afSS" onchange="updateSizeFields(\'afSS\',\'afSSp\',\'afSP\')"><option value="">规格</option>'+SIZES.map(s=>'<option>'+s+'</option>').join('')+'</select><input type="text" id="afSSp" placeholder="特殊规格" style="width:85px"><select id="afSP" style="display:none"><option value="">牙型</option><option value="粗牙">粗牙</option><option value="细牙">细牙</option></select><input type="text" inputmode="decimal" id="afSL" placeholder="长度mm" style="width:80px">';
       break;
     case'螺母':
-      c.innerHTML='<select id="afNT" onchange="if(this.value==\'__new__\'){this.value=\'\';addNutTypeDlg()}">'+getNutTypes().map(s=>'<option>'+s+'</option>').join('')+'<option value="__new__" style="color:var(--primary)">＋ 新增...</option></select><select id="afNS" onchange="toggleSpecial(\'afNSp\',this)"><option value="">规格</option>'+SIZES.map(s=>'<option>'+s+'</option>').join('')+'</select><input type="text" id="afNSp" placeholder="特殊规格" style="width:85px">';
+      c.innerHTML='<select id="afNT" onchange="if(this.value==\'__new__\'){this.value=\'\';addNutTypeDlg()}">'+getNutTypes().map(s=>'<option>'+s+'</option>').join('')+'<option value="__new__" style="color:var(--primary)">＋ 新增...</option></select><select id="afNS" onchange="updateSizeFields(\'afNS\',\'afNSp\',\'afNP\')"><option value="">规格</option>'+SIZES.map(s=>'<option>'+s+'</option>').join('')+'</select><input type="text" id="afNSp" placeholder="特殊规格" style="width:85px"><select id="afNP" style="display:none"><option value="">牙型</option><option value="粗牙">粗牙</option><option value="细牙">细牙</option></select>';
       break;
     case'衬套':
       c.innerHTML='<input type="text" inputmode="decimal" id="afBOD" placeholder="外径mm" style="width:80px"><input type="text" inputmode="decimal" id="afBID" placeholder="内径mm" style="width:80px"><input type="text" inputmode="decimal" id="afBH" placeholder="高度mm" style="width:80px">';
@@ -776,7 +865,7 @@ function onTypeChange(){
     case'垫片':
       c.innerHTML='<input type="text" inputmode="decimal" id="afWOD" placeholder="外径mm" style="width:80px"><input type="text" inputmode="decimal" id="afWID" placeholder="内径mm" style="width:80px"><input type="text" inputmode="decimal" id="afWH" placeholder="高度mm" style="width:80px">';
       document.getElementById('coldLabel').style.display='flex';break;
-    default: document.getElementById('coldLabel').style.display='none';
+    default: break;
   }
 }
 
@@ -794,14 +883,27 @@ function collectFields(){
     washer_od:0,washer_id:0,washer_height:0
   };
   switch(t){
-    case'螺丝':f.screw_type=gv('afST');f.screw_size=gv('afSS');f.screw_special=gv('afSSp');f.screw_length=parseNum(gv('afSL'));break;
-    case'螺母':f.nut_type=gv('afNT');f.nut_size=gv('afNS');f.nut_special=gv('afNSp');break;
+    case'螺丝':
+      f.screw_type=gv('afST');f.screw_size=gv('afSS');f.screw_special=needsThreadType(f.screw_size)?gv('afSP'):gv('afSSp');f.screw_length=parseNum(gv('afSL'));
+      if(needsThreadType(f.screw_size)&&!f.screw_special){toast('请选择粗牙或细牙',true);return null}
+      break;
+    case'螺母':
+      f.nut_type=gv('afNT');f.nut_size=gv('afNS');f.nut_special=needsThreadType(f.nut_size)?gv('afNP'):gv('afNSp');
+      if(needsThreadType(f.nut_size)&&!f.nut_special){toast('请选择粗牙或细牙',true);return null}
+      break;
     case'衬套':f.bushing_od=parseNum(gv('afBOD'));f.bushing_id=parseNum(gv('afBID'));f.bushing_height=parseNum(gv('afBH'));f.cold_headed=document.getElementById('afCH')?.checked||false;break;
     case'垫片':f.washer_od=parseNum(gv('afWOD'));f.washer_id=parseNum(gv('afWID'));f.washer_height=parseNum(gv('afWH'));f.cold_headed=document.getElementById('afCH')?.checked||false;break;
   }
   return f;
 }
 
+function updateSizeFields(sizeId,specialId,threadId){
+  var size=document.getElementById(sizeId),special=document.getElementById(specialId),thread=document.getElementById(threadId);
+  var hasSize=!!size.value,showThread=needsThreadType(size.value);
+  special.style.display=hasSize?'none':'';
+  thread.style.display=showThread?'':'none';
+  if(!showThread)thread.value='';
+}
 function toggleSpecial(spId,sel){document.getElementById(spId).style.display=sel.value?'none':''}
 function parseNum(val){
   if(val==null||val==='')return 0;val=String(val).trim();
@@ -843,7 +945,7 @@ function saveRecord(){
       .finally(()=>{busy=false;document.getElementById('addBtn').disabled=false});
   }else{
     const tmpId=-Date.now();
-    records.unshift({id:tmpId,...f});
+    records.unshift({id:tmpId,created_at:new Date().toISOString(),...f});
     renderContent();resetForm();
     api('POST','parts',f).then(data=>{
       const rec=Array.isArray(data)?data[0]:data;
@@ -871,8 +973,8 @@ function edit(id){
   onTypeChange();
   setTimeout(()=>{
     switch(r.part_type){
-      case'螺丝':sv('afST',r.screw_type);sv('afSS',r.screw_size);sv('afSSp',r.screw_special);sv('afSL',r.screw_length);toggleSpecial('afSSp',document.getElementById('afSS'));break;
-      case'螺母':sv('afNT',r.nut_type);sv('afNS',r.nut_size);sv('afNSp',r.nut_special);toggleSpecial('afNSp',document.getElementById('afNS'));break;
+      case'螺丝':sv('afST',r.screw_type);sv('afSS',r.screw_size);sv('afSL',r.screw_length);updateSizeFields('afSS','afSSp','afSP');if(getThreadType(r))sv('afSP',getThreadType(r));else sv('afSSp',r.screw_special);break;
+      case'螺母':sv('afNT',r.nut_type);sv('afNS',r.nut_size);updateSizeFields('afNS','afNSp','afNP');if(getThreadType(r))sv('afNP',getThreadType(r));else sv('afNSp',r.nut_special);break;
       case'衬套':sv('afBOD',r.bushing_od);sv('afBID',r.bushing_id);sv('afBH',r.bushing_height);document.getElementById('coldLabel').style.display='flex';document.getElementById('afCH').checked=!!r.cold_headed;break;
       case'垫片':sv('afWOD',r.washer_od);sv('afWID',r.washer_id);sv('afWH',r.washer_height);document.getElementById('coldLabel').style.display='flex';document.getElementById('afCH').checked=!!r.cold_headed;break;
     }
@@ -997,6 +1099,7 @@ function saveSettings(){
 // ==================== 快捷键 ====================
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();saveRecord()}});
 document.getElementById('newVehName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();createVehicle()}});
+document.getElementById('newVehName2').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();createVehicle('newVehName2')}});
 
 // ==================== 初始化 ====================
 function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
@@ -1006,12 +1109,147 @@ async function init(){
     document.getElementById('tableContent').innerHTML='<div class="empty"><p>🔩 欢迎使用零件管理器</p><p style="margin-top:8px">请先配置 Supabase 连接</p><button class="btn-primary btn-sm" style="margin-top:12px" onclick="showSettings()">⚙️ 开始设置</button></div>';
     return;
   }
-  document.getElementById('tableContent').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:12px">加载中...</p></div>';
-  try{await loadCloudCfg();await loadRecords();renderAll();initRealtime();startSync()}catch(e){document.getElementById('tableContent').innerHTML='<div class="empty"><p>❌ 连接失败</p><p>'+esc(e.message)+'</p><button class="btn-outline btn-sm" style="margin-top:12px" onclick="showSettings()">⚙️ 检查设置</button></div>'}
+  var cached=cacheGet('records');
+  if(!cached||!cached.length){
+    document.getElementById('tableContent').innerHTML='<div class="loading"><div class="spinner"></div><p style="margin-top:12px">加载中...</p></div>';
+  }
+  try{
+    // loadRecords 先跑：有缓存则秒渲染（不阻塞），无缓存等网络
+    // loadCloudCfg 并行跑：螺丝螺母类型列表
+    await Promise.all([loadRecords(),loadCloudCfg()]);
+    renderAll();
+    initRealtime();startSync();
+  }catch(e){if(!cached||!cached.length){document.getElementById('tableContent').innerHTML='<div class="empty"><p>❌ 连接失败</p><p>'+esc(e.message)+'</p><button class="btn-outline btn-sm" style="margin-top:12px" onclick="showSettings()">⚙️ 检查设置</button></div>'}}
 }
 document.addEventListener('visibilitychange',function(){if(!document.hidden)fullSync()});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 init();
+
+
+
+
+
+// ==================== 自定义下拉框（浮层，不扰动布局，彻底防滚动穿透）====================
+(function(){
+  var openDD=null,backdrop=null;
+
+  function ensureBackdrop(){
+    if(backdrop)return;
+    backdrop=document.createElement('div');
+    backdrop.className='cus-backdrop';
+    document.body.appendChild(backdrop);
+  }
+
+  function closeDD(){
+    if(openDD){openDD.remove();openDD=null;}
+    if(backdrop){backdrop.style.display='none';}
+  }
+
+  function toggleDD(sel){
+    if(openDD&&openDD._sel===sel){closeDD();return}
+    closeDD();ensureBackdrop();
+
+    var dd=document.createElement('div');
+    dd.className='cus-drop-float';
+    dd._sel=sel;
+
+    for(var i=0;i<sel.options.length;i++){
+      var o=sel.options[i];
+      var div=document.createElement('div');
+      div.className='cus-opt'+(o.value===sel.value?' sel':'')+(o.disabled?' disabled':'');
+      div.textContent=o.text;
+      div.setAttribute('data-val',o.value);
+      div.addEventListener('click',function(){
+        if(this.classList.contains('disabled')){closeDD();return}
+        sel.value=this.getAttribute('data-val');
+        sel.dispatchEvent(new Event('change',{bubbles:true}));
+        closeDD();
+      });
+      dd.appendChild(div);
+    }
+
+    // 防滚动穿透：用触摸坐标计算方向
+    var _touchY=0;
+    dd.addEventListener('touchstart',function(e){
+      _touchY=e.touches[0].clientY;
+    },{passive:true});
+
+    dd.addEventListener('touchmove',function(e){
+      var dy=_touchY-e.touches[0].clientY;
+      _touchY=e.touches[0].clientY;
+      var atTop=dd.scrollTop<=1;
+      var atBottom=dd.scrollTop+dd.clientHeight>=dd.scrollHeight-2;
+      // 往上滑（dy>0）且在顶部 → 阻止主页面滚动
+      // 往下滑（dy<0）且在底部 → 阻止主页面滚动
+      if((atTop&&dy<0)||(atBottom&&dy>0)){
+        e.preventDefault();
+      }else{
+        // 在框内正常滚动，阻止冒泡防止主页面跟着滚
+        e.stopPropagation();
+      }
+    },{passive:false});
+
+    // 鼠标滚轮
+    dd.addEventListener('wheel',function(e){
+      var atTop=dd.scrollTop<=1;
+      var atBottom=dd.scrollTop+dd.clientHeight>=dd.scrollHeight-2;
+      if((atTop&&e.deltaY<0)||(atBottom&&e.deltaY>0)){
+        e.preventDefault();
+      }
+    },{passive:false});
+
+    document.body.appendChild(dd);
+
+    var r=sel.getBoundingClientRect();
+    var ddW=Math.max(r.width,160);
+    dd.style.width=ddW+'px';
+    dd.style.left=Math.max(2,Math.min(r.left,window.innerWidth-ddW-4))+'px';
+
+    var spaceBelow=window.innerHeight-r.bottom-4;
+    var spaceAbove=r.top-4;
+    if(spaceBelow>=160||spaceBelow>=spaceAbove){
+      dd.style.top=r.bottom+'px';
+      dd.style.maxHeight=Math.min(spaceBelow-8,280)+'px';
+    }else{
+      dd.style.top='auto';
+      dd.style.bottom=(window.innerHeight-r.top)+'px';
+      dd.style.maxHeight=Math.min(spaceAbove-8,280)+'px';
+    }
+
+    dd.style.display='block';
+    backdrop.style.display='block';
+    openDD=dd;
+
+    var selOpt=dd.querySelector('.cus-opt.sel');
+    if(selOpt)selOpt.scrollIntoView({block:'nearest'});
+  }
+
+  document.addEventListener('touchstart',function(e){
+    var sel=e.target.closest('select');
+    if(sel&&!sel.hasAttribute('data-native')){
+      e.preventDefault();e.stopPropagation();
+      toggleDD(sel);
+      return;
+    }
+    if(openDD&&!openDD.contains(e.target)){
+      closeDD();
+    }
+  },{passive:false});
+
+  document.addEventListener('mousedown',function(e){
+    var sel=e.target.closest('select');
+    if(sel&&!sel.hasAttribute('data-native')){
+      if(navigator.maxTouchPoints)return;
+      e.preventDefault();toggleDD(sel);
+      return;
+    }
+    if(openDD&&!openDD.contains(e.target)){
+      closeDD();
+    }
+  });
+
+  window.addEventListener('resize',closeDD);
+})();
 </script>
 </body>
 </html>
