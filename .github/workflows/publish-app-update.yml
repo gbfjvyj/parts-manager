@@ -1,0 +1,30 @@
+name: Publish App Web Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - supabase.min.js
+      - manifest.json
+      - sw.js
+      - publish-update.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Publish signed web bundle
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          APP_UPDATE_PRIVATE_KEY: ${{ secrets.APP_UPDATE_PRIVATE_KEY }}
+        run: node publish-update.js
